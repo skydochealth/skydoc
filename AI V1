@@ -1,0 +1,526 @@
+"""
+SkyDoc AI Prompt Engine – v0.2 (Crew & Doctor Modes)
+Author: Ayşe Melis Günal (Dr. Mel)
+Created: 2025-10-07 (Istanbul)
+
+© 2025 Ayşe Melis Günal — SkyDoc AI. All rights reserved.
+Proprietary license. Not for clinical use without airline SOP, medical control, and approvals.
+
+Purpose
+-------
+A lightweight, prompt-driven triage assistant for in‑flight medical events (IMEs).
+This module ships with a symptom rules registry covering common IMEs and produces:
+• A structured medical summary (DOCTOR mode)
+• A plain-language, checklist-style summary (CREW mode)
+• An LLM-ready prompt with an explicit tone (CREW or DOCTOR)
+
+Evidence Window
+---------------
+Prioritize practices commonly documented in airline IME literature from the last 5 years
+(e.g., large multi-airline datasets and recent reviews). Update rules as new evidence emerges.
+
+Legal / Safety
+--------------
+• Decision‑assist only. Final authority remains with the Captain and medical control.
+• Outputs are not a diagnosis; use with airline SOPs, local regulations, and medical kits.
+• If a licensed ground physician is available, escalate per protocol.
+
+How to use
+----------
+from skydoc_ai_engine_v0_2 import triage_case, example_case
+result = triage_case(example_case())
+print(result["crew_summary"])       # crew-facing checklist
+print(result["medical_summary"])    # doctor-facing summary
+print(result["llm_prompt"])         # feed this to an LLM via API
+
+Extension roadmap
+-----------------
+• Add more symptoms, refine red flags, integrate flight telemetry (diversion feasibility)
+• Localize PROMPT_TEMPLATE (TR/DE) and add unit tests
+• Log cases to secure storage; enable audit + quality improvement
+"""
+from typing import Dict, Any, List
+
+# --- Core registry of symptom protocols -------------------------------------
+# Each protocol defines: follow-up questions, red flags, suggested actions, and
+# diversion criteria that can be merged into a structured decision summary.
+
+PROTOCOLS: Dict[str, Dict[str, Any]] = {
+    "chest_pain": {
+        "labels": ["chest pain", "pressure", "tightness", "acs"],
+        "follow_up": [
+            "When did the pain start?", "Does it go to arm/jaw/back?",
+            "Any shortness of breath, sweating, nausea?",
+            "Age >40, heart history, recent surgery/immobilization?",
+            "Any meds (own nitro), allergies, aspirin okay?",
+        ],
+        "red_flags": [
+            "Systolic BP < 90 mmHg",
+            "Heart rate > 120 or < 40 bpm",
+            "Oxygen saturation < 90% despite oxygen",
+            "Altered consciousness or severe distress",
+            "Arrhythmia or chest pain > 20 min at rest",
+        ],
+        "suggested_actions": [
+            "Administer supplemental oxygen if available",
+            "Aspirin 160–325 mg chewable if not allergic and no bleeding risk (if allowed by kit/SOP)",
+            "Keep passenger calm, limit movement, monitor",
+            "Contact ground medical control ASAP",
+        ],
+        "diversion_criteria": [
+            "Persistent low BP or dangerous rhythm",
+            "Ongoing severe chest pain despite rest/oxygen",
+            "New weakness/speech trouble or signs of shock",
+        ],
+    },
+    "syncope": {
+        "labels": ["fainting", "collapse", "presyncope", "syncope"],
+        "follow_up": [
+            "Any warning signs (nausea, lightheadedness)?",
+            "How long were they out? Any fall/injury?",
+            "Current BP/HR/SpO2",
+            "Diabetes history / glucose available?",
+            "Recent alcohol, dehydration, long standing?",
+        ],
+        "red_flags": [
+            "Persistent confusion",
+            "BP < 90 mmHg or HR > 120 bpm",
+            "Chest pain, breathing trouble, or new weakness",
+            "Seizure or major head injury",
+        ],
+        "suggested_actions": [
+            "Lay flat, raise legs, loosen tight clothes",
+            "Check vitals often; give oxygen if available",
+            "Oral fluids if fully awake and safe",
+            "Check glucose if kit allows; treat low sugar per SOP",
+        ],
+        "diversion_criteria": [
+            "Unstable vitals or repeated fainting",
+            "Serious features (chest pain, neuro signs, major trauma)",
+        ],
+    },
+    "shortness_of_breath": {
+        "labels": ["shortness of breath", "dyspnea", "respiratory distress", "hypoxia"],
+        "follow_up": [
+            "When did it start? Known asthma/COPD/anxiety?",
+            "Cough/wheeze/stridor? Chest pain?",
+            "Own inhaler? Previous severe attacks?",
+            "SpO2 on air and with oxygen?",
+        ],
+        "red_flags": [
+            "SpO2 < 90% despite oxygen",
+            "Using neck/chest muscles to breathe, very tired",
+            "Noisy breathing (stridor) or fast swelling (allergy)",
+        ],
+        "suggested_actions": [
+            "High‑flow oxygen if available",
+            "Assist with passenger’s own inhaler if appropriate",
+            "Keep calm setting; coach slow breaths",
+            "Contact ground medical control",
+        ],
+        "diversion_criteria": [
+            "Breathing gets worse or oxygen stays low",
+            "Suspected PE with instability or chest pain",
+        ],
+    },
+    "stroke_symptoms": {
+        "labels": ["weakness", "arm drift", "speech trouble", "aphasia", "facial droop", "stroke"],
+        "follow_up": [
+            "When last seen normal?",
+            "FAST check: Face, Arm drift, Speech",
+            "Glucose if available",
+            "On blood thinners or antiplatelets?",
+        ],
+        "red_flags": [
+            "Any new weakness or speech trouble",
+            "Severe headache plus neuro signs",
+            "Seizure with lingering weakness",
+        ],
+        "suggested_actions": [
+            "Give oxygen if low; minimize movement",
+            "Give sugar if glucose low and safe to swallow",
+            "Immediate ground medical consult; prepare hospital handoff",
+        ],
+        "diversion_criteria": [
+            "New focal deficit within stroke activation window",
+            "Airway compromise or reduced consciousness",
+        ],
+    },
+    "seizure": {
+        "labels": ["seizure", "convulsion", "fit"],
+        "follow_up": [
+            "How long? Known epilepsy?",
+            "Any injury during event?",
+            "Missed meds? Glucose if available",
+        ],
+        "red_flags": [
+            "Seizure > 5 min or back‑to‑back without recovery",
+            "Head injury, persistent confusion",
+            "Pregnancy, fever, or new weakness",
+        ],
+        "suggested_actions": [
+            "Protect from injury; do not restrain",
+            "Left side position after; oxygen if needed",
+            "Check glucose; contact ground control",
+        ],
+        "diversion_criteria": [
+            "Ongoing seizures or not waking up",
+            "Head trauma or new weakness",
+        ],
+    },
+    "allergic_reaction": {
+        "labels": ["hives", "swelling", "anaphylaxis", "allergy"],
+        "follow_up": [
+            "What exposure and when?",
+            "Skin, stomach, breathing, dizziness?",
+            "Known allergy? Auto‑injector carried?",
+        ],
+        "red_flags": [
+            "Airway swelling, noisy breathing, wheeze",
+            "Low BP, fainting",
+            "Fast worsening symptoms",
+        ],
+        "suggested_actions": [
+            "If severe allergy: use their epinephrine auto‑injector if available",
+            "Give oxygen; keep comfortable; monitor",
+            "Antihistamine per kit/SOP if only skin symptoms",
+            "Call ground medical immediately",
+        ],
+        "diversion_criteria": [
+            "Severe allergy or airway swelling",
+            "Not improving after first treatment",
+        ],
+    },
+    "hypoglycemia": {
+        "labels": ["low sugar", "hypoglycemia", "diabetic low"],
+        "follow_up": [
+            "Glucose value if available",
+            "Insulin/sulfonylurea use?",
+            "Able to safely swallow?",
+        ],
+        "red_flags": [
+            "Not fully awake or seizing",
+            "Confusion not improving",
+        ],
+        "suggested_actions": [
+            "If awake: give oral glucose/juice",
+            "If not safe to swallow: urgent ground consult for IV plan on landing",
+            "Recheck symptoms/glucose often",
+        ],
+        "diversion_criteria": [
+            "Still confused or seizing",
+        ],
+    },
+    "hyperglycemia": {
+        "labels": ["high sugar", "hyperglycemia", "dka"],
+        "follow_up": [
+            "Nausea, belly pain, deep breathing?",
+            "Glucose value if available",
+        ],
+        "red_flags": [
+            "Vomiting, dehydration, deep/fast breathing",
+            "Confusion",
+        ],
+        "suggested_actions": [
+            "Small sips of fluid if awake; oxygen if needed",
+            "Ground consult; plan EMS at landing",
+        ],
+        "diversion_criteria": [
+            "Confused or severe vomiting/dehydration",
+        ],
+    },
+    "asthma_copd": {
+        "labels": ["asthma", "wheeze", "copd"],
+        "follow_up": [
+            "Inhaler used?",
+            "ICU/vent history?",
+            "SpO2 trend with oxygen",
+        ],
+        "red_flags": [
+            "Silent chest, exhaustion",
+            "SpO2 < 90% despite oxygen/inhaler",
+        ],
+        "suggested_actions": [
+            "Help with inhaler; oxygen; calm coaching",
+            "Ground consult",
+        ],
+        "diversion_criteria": [
+            "Still struggling to breathe or oxygen low",
+        ],
+    },
+    "gi_bleeding": {
+        "labels": ["vomiting blood", "black stool", "gi bleed"],
+        "follow_up": [
+            "Vomiting blood or black stool?",
+            "On blood thinners?",
+            "Belly pain, dizziness, fainting?",
+        ],
+        "red_flags": [
+            "Low BP or fast pulse",
+            "Ongoing vomiting of blood",
+        ],
+        "suggested_actions": [
+            "Position of comfort; no food; oxygen if needed",
+            "Ground consult; plan EMS at gate",
+        ],
+        "diversion_criteria": [
+            "Unstable or ongoing significant bleeding",
+        ],
+    },
+    "psychiatric_panic": {
+        "labels": ["panic", "anxiety attack", "hyperventilation"],
+        "follow_up": [
+            "Any chest pain or real breathing trouble?",
+            "Trigger (fear/claustrophobia)?",
+        ],
+        "red_flags": [
+            "Low oxygen, chest pain, fainting (consider medical causes)",
+        ],
+        "suggested_actions": [
+            "Speak calmly; short simple sentences; slow breathing",
+            "Oxygen if borderline low",
+        ],
+        "diversion_criteria": [
+            "Danger to self/others or cannot calm",
+        ],
+    },
+    "obstetric_emergency": {
+        "labels": ["pregnancy", "labor", "bleeding"],
+        "follow_up": [
+            "How many weeks pregnant?",
+            "Contractions timing; bleeding or fluid?",
+            "Baby moving?",
+        ],
+        "red_flags": [
+            "Heavy bleeding, severe pain, seizure risk",
+        ],
+        "suggested_actions": [
+            "Left side position; oxygen if needed",
+            "Ground consult; prepare EMS",
+        ],
+        "diversion_criteria": [
+            "Rapid labor or heavy bleeding",
+        ],
+    },
+    "head_injury_trauma": {
+        "labels": ["head injury", "fall", "trauma"],
+        "follow_up": [
+            "Knocked out? Vomiting? Seizure?",
+            "On blood thinners?",
+            "Neck pain or new weakness?",
+        ],
+        "red_flags": [
+            "Still confused or very sleepy",
+            "New weakness or seizure",
+            "Blood thinners with head hit",
+        ],
+        "suggested_actions": [
+            "Limit movement; support neck if needed; oxygen",
+            "Ground consult; monitor closely",
+        ],
+        "diversion_criteria": [
+            "Any red flag present",
+        ],
+    },
+}
+
+# --- Prompt template (English) ----------------------------------------------
+PROMPT_TEMPLATE_EN = """
+You are SkyDoc, an in‑flight medical decision‑assist system for airline crew.
+You do NOT make diagnoses; you provide structured risk assessment and next steps.
+Follow aviation constraints (limited equipment, passenger privacy, captain authority).
+
+Knowledge window: prioritize practices commonly documented in airline IME literature from the last 5 years.
+
+TONE GUIDANCE
+-------------
+When Tone = CREW: Use calm, plain language, short sentences, no medical jargon. Use checklists and imperative steps.
+When Tone = DOCTOR: Use professional medical language suitable for documentation and ground control.
+
+INPUTS
+------
+Passenger: {passenger}
+Chief complaint: {chief_complaint}
+Symptom category: {category}
+Vitals: {vitals}
+Findings / answers: {answers}
+Flight status: {flight}
+Tone: {tone}
+
+OUTPUT FORMAT (STRICT)
+----------------------
+1) Risk level: [Low | Moderate | High] and why (bullet points)
+2) Likely problems (top 3 differentials)
+3) Immediate actions (on‑board doable)
+4) Diversion recommendation: [Yes/No] + concrete criteria satisfied (if Yes)
+5) Ground medical preparation on landing (who to meet aircraft; key handoff notes)
+6) Captain’s log summary (≤ 4 sentences)
+
+Keep it concise, structured, and actionable.
+"""
+
+# --- Helper functions ---------------------------------------------------------
+
+def _match_category(chief_complaint: str) -> str:
+    cc = (chief_complaint or "").lower()
+    for key, proto in PROTOCOLS.items():
+        for label in proto["labels"]:
+            if label in cc:
+                return key
+    # default bucket
+    return "syncope" if "faint" in cc else "shortness_of_breath" if "breath" in cc else "chest_pain"
+
+
+def _build_summary(category: str, vitals: Dict[str, Any], answers: List[str]) -> Dict[str, Any]:
+    proto = PROTOCOLS.get(category, {})
+    red_flags_triggered = []
+    # Simple rule checks from vitals
+    sbp = vitals.get("sbp")
+    hr = vitals.get("hr")
+    spo2 = vitals.get("spo2")
+    if sbp is not None and sbp < 90:
+        red_flags_triggered.append("Systolic BP < 90")
+    if hr is not None and (hr > 120 or hr < 40):
+        red_flags_triggered.append("Abnormal heart rate")
+    if spo2 is not None and spo2 < 90:
+        red_flags_triggered.append("SpO2 < 90%")
+
+    # Merge protocol red flags if crew answers mention them
+    for rf in proto.get("red_flags", []):
+        for ans in answers:
+            if ans and ans.lower() in rf.lower():
+                red_flags_triggered.append(rf)
+
+    risk = "High" if red_flags_triggered else "Moderate"
+    summary = {
+        "risk": risk,
+        "red_flags": list(set(red_flags_triggered)),
+        "immediate_actions": proto.get("suggested_actions", []),
+        "diversion_if": proto.get("diversion_criteria", []),
+        "follow_up_questions": proto.get("follow_up", []),
+    }
+    return summary
+
+
+def _to_crew_plain(category: str, summary: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert medical summary into simple, non‑jargon checklist for cabin crew."""
+    # Map some common medical phrases to crew‑friendly language
+    phrase_map = {
+        "Administer": "Give",
+        "supplemental oxygen": "oxygen with mask",
+        "hemodynamic instability": "very low blood pressure or very fast/slow pulse",
+        "refractory": "not getting better",
+        "neurologic deficit": "new weakness or trouble speaking",
+        "hypoxia": "low oxygen level",
+        "arrhythmia": "irregular heartbeat",
+    }
+
+    def simplify(text: str) -> str:
+        out = text
+        for k, v in phrase_map.items():
+            out = out.replace(k, v)
+        return out
+
+    steps = [simplify(s) for s in summary.get("immediate_actions", [])]
+    red = [simplify(s) for s in summary.get("red_flags", [])]
+    diversion = [simplify(s) for s in summary.get("diversion_if", [])]
+
+    # Headline risk cue
+    risk_note = (
+        "Stay calm. Follow steps. Tell the captain to contact ground medical now."
+        if summary["risk"] == "High" else
+        "Monitor closely and contact ground medical for advice."
+    )
+
+    return {
+        "risk_note": risk_note,
+        "checklist": steps,
+        "watch_for": red,
+        "consider_diversion_if": diversion,
+        "tone": "CREW",
+        "category": category,
+    }
+
+
+def _to_doctor_summary(category: str, summary: Dict[str, Any]) -> Dict[str, Any]:
+    """Keep the technical summary for documentation/ground physicians."""
+    return {
+        "risk": summary.get("risk"),
+        "red_flags": summary.get("red_flags", []),
+        "immediate_actions": summary.get("immediate_actions", []),
+        "diversion_criteria": summary.get("diversion_if", []),
+        "follow_up_questions": summary.get("follow_up_questions", []),
+        "tone": "DOCTOR",
+        "category": category,
+    }
+
+
+def triage_case(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Create a structured summary + dual‑voice outputs + an LLM‑ready prompt.
+
+    payload keys expected:
+      passenger: str (e.g., "Adult, M, approx. 60y")
+      chief_complaint: str (free text)
+      vitals: { sbp:int, hr:int, rr:int, spo2:int, temp:float }
+      answers: list[str] (crew free-text answers to follow-ups)
+      flight: { phase:str, time_to_destination_min:int, nearest_diversion_min:int }
+      tone: "crew" | "doctor" (optional)
+    """
+    passenger = payload.get("passenger", "Unknown")
+    chief = payload.get("chief_complaint", "")
+    vitals = payload.get("vitals", {})
+    answers = payload.get("answers", [])
+    flight = payload.get("flight", {})
+    tone = (payload.get("tone") or "crew").lower()
+
+    category = payload.get("category") or _match_category(chief)
+    summary = _build_summary(category, vitals, answers)
+
+    crew_summary = _to_crew_plain(category, summary)
+    doctor_summary = _to_doctor_summary(category, summary)
+
+    llm_prompt = PROMPT_TEMPLATE_EN.format(
+        passenger=passenger,
+        chief_complaint=chief,
+        category=category,
+        vitals=vitals,
+        answers=answers,
+        flight=flight,
+        tone=("CREW" if tone == "crew" else "DOCTOR"),
+    )
+
+    return {
+        "category": category,
+        "risk": summary.get("risk"),
+        "crew_summary": crew_summary,
+        "medical_summary": doctor_summary,
+        "llm_prompt": llm_prompt,
+        "disclaimer": (
+            "Decision‑assist only (last‑5‑years practices). Use airline SOPs and medical control. Captain has final authority."
+        ),
+    }
+
+
+# --- Example payload for quick testing --------------------------------------
+
+def example_case() -> Dict[str, Any]:
+    return {
+        "passenger": "Adult male, approx. 58y",
+        "chief_complaint": "chest pain with sweating and shortness of breath",
+        "vitals": {"sbp": 88, "hr": 124, "rr": 24, "spo2": 89, "temp": 36.8},
+        "answers": ["pain > 20 minutes", "history of heart disease"],
+        "flight": {"phase": "cruise", "time_to_destination_min": 95, "nearest_diversion_min": 30},
+        "tone": "crew",
+    }
+
+
+if __name__ == "__main__":
+    # Quick sanity run
+    case = example_case()
+    out = triage_case(case)
+    print("\n=== CREW MODE ===")
+    print(out["crew_summary"])  # checklist + watch-fors
+    print("\n=== DOCTOR MODE ===")
+    print(out["medical_summary"])  # technical summary
+    print("\n=== LLM PROMPT (send to your model) ===\n")
+    print(out["llm_prompt"])

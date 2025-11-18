@@ -2,256 +2,34 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>SkyDoc — Aviation Telemedicine</title>
+  <title>SkyDoc — Aviation Telemedicine Concept</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta
     name="description"
-    content="SkyDoc is a next-generation aviation telemedicine concept to support in-flight triage, diversion decisions, and post-flight clinical documentation."
+    content="SkyDoc is a physician-designed aviation telemedicine concept focused on in-flight triage, diversion decision support, and post-flight documentation."
   />
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <!-- HEADER / NAV -->
-  <header class="navbar">
-    <div class="nav-left">
-      <img
-        src="assets/skydoc-logo.png"
-        alt="SkyDoc logo"
-        class="logo"
-      />
-      <span class="brand-text">SkyDoc</span>
-    </div>
-    <nav class="nav-links">
-      <a href="#about">About</a>
-      <a href="#solution">Solution</a>
-      <a href="#workflow">Workflow</a>
-      <a href="#contact">Contact</a>
-    </nav>
-  </header>
+  <style>
+    :root {
+      --navy: #07142a;
+      --navy-soft: #0d1e3b;
+      --navy-light: #12284d;
+      --white: #ffffff;
+      --muted: #e5e7eb;
+      --accent: #3b82f6;
+      --border: rgba(255, 255, 255, 0.12);
+      --radius-lg: 20px;
+      --radius-md: 14px;
+      --shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.45);
+      --max-width: 1000px;
+    }
 
-  <main>
-    <!-- HERO -->
-    <section class="hero">
-      <div class="hero-content">
-        <p class="eyebrow">Aviation Telemedicine Concept</p>
-        <h1>Clinical-grade support above the clouds.</h1>
-        <p class="hero-subtitle">
-          SkyDoc is a physician-designed telemedicine concept for airlines — helping
-          cabin crew and flight deck teams triage in-flight medical events, support
-          diversion decisions, and generate clean clinical documentation.
-        </p>
-        <div class="hero-actions">
-          <a href="#contact" class="btn primary">Contact the founder</a>
-          <a href="#solution" class="btn outline">Explore the concept</a>
-        </div>
-        <p class="meta">
-          Concept version v0.1 &nbsp;•&nbsp; Founder: Ayşe Melis Günal, MD
-        </p>
-      </div>
+    * , *::before, *::after {
+      box-sizing: border-box;
+    }
 
-      <div class="hero-card">
-        <h2>What SkyDoc aims to solve</h2>
-        <ul>
-          <li>⟡ Fragmented in-flight medical decision making</li>
-          <li>⟡ Stressful “divert vs continue” choices</li>
-          <li>⟡ Inconsistent documentation and follow-up</li>
-        </ul>
-        <p class="hero-card-text">
-          SkyDoc imagines a single, secure platform connecting cabin crew, flight
-          deck and ground clinicians with structured protocols and clear data.
-        </p>
-      </div>
-    </section>
-
-    <!-- ABOUT -->
-    <section id="about" class="section">
-      <div class="section-header">
-        <h2>About SkyDoc</h2>
-        <p>Founder-led, physician-driven aviation telemedicine concept.</p>
-      </div>
-      <div class="two-column">
-        <div>
-          <p>
-            SkyDoc is a concept created by <strong>Ayşe Melis Günal</strong>, a medical
-            doctor and International Healthcare MBA candidate. The idea is born at the
-            intersection of clinical practice, EMS emergency medicine and airline
-            operations.
-          </p>
-          <p>
-            The project is currently in the
-            <strong>exploratory and documentation phase</strong>. This website serves
-            as a public snapshot of the idea for potential airline partners,
-            investors and advisors.
-          </p>
-        </div>
-        <div class="about-card">
-          <h3>Vision</h3>
-          <p>
-            To become the aviation sector’s trusted telemedicine layer — providing
-            data-driven support for in-flight medical events, reducing unnecessary
-            diversions and strengthening passenger safety.
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <!-- SOLUTION / FEATURES -->
-    <section id="solution" class="section section-alt">
-      <div class="section-header">
-        <h2>Concept pillars</h2>
-        <p>What SkyDoc would offer in a mature product.</p>
-      </div>
-
-      <div class="grid-3">
-        <div class="card">
-          <h3>Guided in-flight triage</h3>
-          <p>
-            Structured symptom checklists and severity scoring adapted from
-            emergency medicine — simplified for cabin crew with limited space,
-            equipment and time.
-          </p>
-        </div>
-        <div class="card">
-          <h3>Diversion decision support</h3>
-          <p>
-            A decision layer that brings together clinical severity, flight time
-            to alternates and airline policy to support the captain’s final call
-            on diversion vs continuation.
-          </p>
-        </div>
-        <div class="card">
-          <h3>Audit-ready documentation</h3>
-          <p>
-            Clean, time-stamped incident reports that can be securely shared with
-            airline medical departments, insurers and regulators after landing.
-          </p>
-        </div>
-      </div>
-
-      <div class="grid-3">
-        <div class="card">
-          <h3>Data for safety & finance</h3>
-          <p>
-            Aggregated insights over time: event types, diversion rates, cost
-            patterns and improvement opportunities across the fleet.
-          </p>
-        </div>
-        <div class="card">
-          <h3>Designed by a physician</h3>
-          <p>
-            Built from real clinical workflows rather than abstract software
-            assumptions — with crew, passengers and medical directors in mind.
-          </p>
-        </div>
-        <div class="card">
-          <h3>Expandable architecture</h3>
-          <p>
-            Future-ready concept for integration with onboard devices, ground
-            telemedicine partners and airline IT / EHR systems.
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <!-- WORKFLOW -->
-    <section id="workflow" class="section">
-      <div class="section-header">
-        <h2>High-level workflow</h2>
-        <p>How SkyDoc could operate during an in-flight medical event.</p>
-      </div>
-
-      <ol class="workflow-list">
-        <li>
-          <span class="step-badge">1</span>
-          <div>
-            <h3>Cabin crew initiates SkyDoc</h3>
-            <p>
-              A medical incident is reported on board. Cabin crew open the
-              SkyDoc interface on a tablet or secure device and start a guided
-              assessment.
-            </p>
-          </div>
-        </li>
-        <li>
-          <span class="step-badge">2</span>
-          <div>
-            <h3>Structured triage & vital details</h3>
-            <p>
-              The system prompts for key symptoms, timing, red flags and
-              available vital signs, standardising what is communicated to
-              ground teams.
-            </p>
-          </div>
-        </li>
-        <li>
-          <span class="step-badge">3</span>
-          <div>
-            <h3>Ground clinician consultation</h3>
-            <p>
-              A ground clinician reviews the case in real time, provides
-              recommendations appropriate to onboard resources and flags
-              potential need for diversion.
-            </p>
-          </div>
-        </li>
-        <li>
-          <span class="step-badge">4</span>
-          <div>
-            <h3>Diversion support & documentation</h3>
-            <p>
-              Final diversion decisions remain with the captain, but SkyDoc
-              captures the full reasoning trail and generates a secure report
-              for post-flight review.
-            </p>
-          </div>
-        </li>
-      </ol>
-
-      <p class="disclaimer">
-        SkyDoc is currently a concept. No live clinical system, product or
-        service is being offered through this website.
-      </p>
-    </section>
-
-    <!-- CONTACT -->
-    <section id="contact" class="section section-alt">
-      <div class="section-header">
-        <h2>Contact & collaboration</h2>
-        <p>For airlines, investors and advisors interested in the next steps.</p>
-      </div>
-
-      <div class="contact-panel">
-        <div>
-          <p>
-            If you represent an airline, aviation medical group, telemedicine
-            provider or investor and would like to:
-          </p>
-          <ul>
-            <li>Discuss the SkyDoc concept in more detail</li>
-            <li>Explore a research or pilot collaboration</li>
-            <li>Offer advisory support on regulation or operations</li>
-          </ul>
-          <p>
-            please reach out directly by email.
-          </p>
-        </div>
-        <div class="contact-box">
-          <p class="label">Email</p>
-          <p class="email">
-            <a href="mailto:skydochealth@gmail.com">skydochealth@gmail.com</a>
-          </p>
-          <p class="note">
-            Replace this address with your preferred professional contact
-            email (e.g. a dedicated SkyDoc mailbox).
-          </p>
-        </div>
-      </div>
-
-      <p class="footer-note">
-       © SkyDoc — Concept by Ayşe Melis Günal. All ideas and materials presented here are original founder work.
-        Formal intellectual property protection is planned; this page serves as a public timestamp of concept authorship.
-        Content is exploratory and not a medical or commercial offering.      </p>
-    </section>
-  </main>
-</body>
-</html>
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, var(--navy), #020617);
+      color: var(--white);

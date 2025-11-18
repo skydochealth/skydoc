@@ -1,0 +1,1 @@
+© SkyDoc — Concept by Ayşe Melis Günal. The SkyDoc framework, workflows, and design elements constitute original work by the founder. Intellectual property filings are intended as development progresses; this page primarily documents authorship. Nothing here is medical, legal, or operational advice.
